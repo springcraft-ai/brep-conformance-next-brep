@@ -9,10 +9,11 @@ use brep_kernel::{
     boolean_operation, boolean_operation_nary, chamfer_edges_asymmetric, classify_point,
     delete_faces_and_heal, draft_faces, export_step, extrude_profile_brep, fillet_edges,
     import_step, loft_profile_brep, make_arc, make_box_brep, make_cone_brep, make_cylinder_brep,
-    make_line, make_sphere_brep, make_torus_brep, move_faces, offset_shell_rounded, offset_solid,
-    project_point_to_curve, resolve_face_by_point, revolve_profile_brep, rotate_faces,
-    solid_mass_properties, solid_mass_properties_full, split_solid_by_plane,
-    sweep_profile_along_chain, sweep_profile_twisted, tessellate_brep_watertight, transform_brep,
+    make_line, make_periodic_bspline, make_sphere_brep, make_torus_brep, move_faces,
+    offset_shell_rounded, offset_solid, project_point_to_curve, resolve_face_by_point,
+    revolve_profile_brep, rotate_faces, solid_mass_properties, solid_mass_properties_full,
+    split_solid_by_plane, sweep_profile_along_chain, sweep_profile_twisted,
+    tessellate_brep_watertight, transform_brep,
 };
 use brep_protocol::{Refusal, model, model::PathSeg, model::Primitive, profile};
 
@@ -152,16 +153,33 @@ fn sketch(p: &profile::Profile, plane: Plane) -> Result<Vec<NurbsCurve>, Refusal
                     make_arc(c, ax, y, radius, a0, a1).map_err(failed)?
                 }
             }
-            profile::Seg::Spline(_) => {
-                return Err(Refusal::unsupported(
-                    "the adapter does not yet give a periodic spline as next.BREP's curve",
-                ));
+            // next.BREP's periodic B-spline is on evenly spaced knots, from one period's points;
+            // the protocol's lists those points and then the first `degree` again.
+            profile::Seg::Spline(ref sp) => {
+                let steps: Vec<f64> = sp.knots.windows(2).map(|k| k[1] - k[0]).collect();
+                let even = steps
+                    .iter()
+                    .all(|d| (d - steps[0]).abs() <= 1e-12 * steps[0].abs().max(1.0));
+                if !even {
+                    return Err(Refusal::unsupported(
+                        "next.BREP's periodic B-spline takes evenly spaced knots",
+                    ));
+                }
+                let period = sp.ctrl.len().saturating_sub(sp.degree);
+                let points: Vec<Vec3> = sp.ctrl[..period].iter().map(|&q| plane.point(q)).collect();
+                make_periodic_bspline(sp.degree, &points).map_err(failed)?
             }
-            profile::Seg::Conic { .. } => {
-                return Err(Refusal::unsupported(
-                    "the adapter does not yet give a conic as next.BREP's curve",
-                ));
-            }
+            // The rational quadratic through `a`, `apex` and `b`, weighted 1, `w`, 1.
+            profile::Seg::Conic { a, apex, b, w } => NurbsCurve::new(
+                2,
+                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                vec![
+                    Vec4::from_point(plane.point(a), 1.0),
+                    Vec4::from_point(plane.point(apex), w),
+                    Vec4::from_point(plane.point(b), 1.0),
+                ],
+            )
+            .map_err(failed)?,
             profile::Seg::Gn { .. } => {
                 return Err(Refusal::unsupported(
                     "next.BREP profiles have no blend-section segment",

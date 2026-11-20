@@ -65,8 +65,10 @@ Listed as unsupported, since next.BREP 0.24.0 has no public call of the protocol
   sections, projections, the least bounding box, displays and ray casts.
 
 next.BREP's profile constructions take one loop, so a profile with holes is unsupported: next.BREP
-cuts holes as booleans of their own. Profile splines and conics are refused until the adapter gives
-them as next.BREP's curves.
+cuts holes as booleans of their own. A profile's periodic spline is next.BREP's periodic B-spline
+on the period's points, which takes evenly spaced knots, so a spline on other knots is
+unsupported; a conic is its rational quadratic through the two ends and the apex. A blend-section
+segment has no next.BREP curve and is unsupported.
 
 ## Setup
 
