@@ -25,8 +25,48 @@ maintains it.
 
 ## Overview
 
-The adapter is a single Rust program that answers each function of the suite's protocol with
-next.BREP's one call for it, and lists the rest as unsupported.
+[`src/main.rs`](src/main.rs) answers each function with next.BREP's one call for it, as
+[the contract](https://github.com/springcraft-ai/brep-conformance/blob/main/doc/contract.md#what-an-adapter-may-do)
+asks, and lists the rest as unsupported. It builds the suite's box, cylinder, sphere, torus and cone
+with next.BREP's own constructors, and its extrusions, revolutions, lofts and sweeps with its
+profile constructions, each about the origin and moved onto its frame by next.BREP's affine map. It
+answers the booleans, the booleans of many, the mass properties, the validity check,
+classification, rigid and affine maps, fillets, chamfers, offsets, shells, drafts, face deletes and
+moves, plane splits, meshes and STEP with next.BREP's own calls.
+
+next.BREP takes an edge or a face by a point and finds the nearest within about a millimetre. The
+contract names an edge or a face only within `10·ε`, so the adapter first holds each point to that,
+by next.BREP's own projection onto the edges and its own classification of the point on the
+boundary, and refuses a point that names nothing. A point on an edge, where several faces meet,
+names no one face, and the call is unsupported.
+
+A two-distance chamfer sets its first distance back along the first of the edge's faces in
+next.BREP's own order, read from `BREP_blend`, the same release's blend crate; the adapter gives
+the named face's distance in that place. A face move is next.BREP's translation of faces, or its
+turn of faces about an axis; a move that turns and slides at once is unsupported.
+
+next.BREP says a result is empty by a solid with no faces, and the adapter reads that, and nothing
+else, as the empty solid. Its refusals keep their class: geometry next.BREP does not model yet is
+unsupported, an input it rejects or that has no single answer is invalid, and anything else is a
+failure.
+
+The adapter classifies points at the suite's tolerance, 1e-7 mm, and says so in `hello`. It
+declares 4e-3 mm, the edge-to-face disagreement next.BREP's validator accepts in a valid solid.
+
+Listed as unsupported, since next.BREP 0.24.0 has no public call of the protocol's shape for it:
+
+- Face offsets, thickening a solid's faces, and outward normals: next.BREP builds these, but behind
+  its feature pipeline or in private modules.
+- A variable fillet: next.BREP's runs its radius from the edge's own start, and cannot be told the
+  end the protocol names.
+- Screws (its helical sweep keeps the section square to the helix), slabs, conic fillets sized by
+  setback, fillets and chamfers of several sizes at once, curvature-continuous, setback, face and
+  full-round fillets, sewing, the nearest point, curvatures, distance, interference, Betti numbers,
+  sections, projections, the least bounding box, displays and ray casts.
+
+next.BREP's profile constructions take one loop, so a profile with holes is unsupported: next.BREP
+cuts holes as booleans of their own. Profile splines and conics are refused until the adapter gives
+them as next.BREP's curves.
 
 ## Setup
 
