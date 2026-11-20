@@ -7,7 +7,7 @@ description = "The next.BREP adapter for the B-rep protocol the conformance suit
 publish = false
 
 [dependencies]
-brep-protocol = "=1.0.0"
+brep-protocol = "=2.0.0"
 brep_kernel = { package = "BREP_kernel", version = "=0.24.0" }
 # The same release's blend crate, for the edge-to-faces order `BREP_kernel` does not re-export.
 brep_blend = { package = "BREP_blend", version = "=0.24.0" }

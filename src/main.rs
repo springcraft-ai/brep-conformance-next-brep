@@ -185,6 +185,11 @@ fn sketch(p: &profile::Profile, plane: Plane) -> Result<Vec<NurbsCurve>, Refusal
                     "next.BREP profiles have no blend-section segment",
                 ));
             }
+            _ => {
+                return Err(Refusal::unsupported(
+                    "the adapter does not know this kind of profile segment",
+                ));
+            }
         };
         curves.push(next);
     }
@@ -272,16 +277,17 @@ fn make(p: &Primitive) -> Result<BrepSolid, Refusal> {
                 .map_err(failed)?,
             frame,
         ),
-        // The protocol's scaled copy of the profile, by the protocol crate's own `scaled`.
+        // The top section is the scaled copy of the profile the protocol sends.
         Primitive::Loft {
             frame,
             profile,
-            scale,
             height,
+            top,
+            ..
         } => {
             let sections = [
                 sketch(profile, Plane::Xy(0.0))?,
-                sketch(&profile.scaled(*scale), Plane::Xy(*height))?,
+                sketch(top, Plane::Xy(*height))?,
             ];
             (loft_profile_brep(&sections).map_err(refused)?, frame)
         }
@@ -440,13 +446,13 @@ impl brep_protocol::Kernel for NextBrep {
         format!("classify_point tolerance {CLASSIFY} mm")
     }
 
-    fn make(&self, p: &Primitive) -> Result<Solid, Refusal> {
+    fn make(&mut self, p: &Primitive) -> Result<Solid, Refusal> {
         make(p).map(Some)
     }
 
     /// next.BREP's loft through every section, each profile drawn at its height.
     fn loft_through(
-        &self,
+        &mut self,
         frame: &model::Frame,
         profiles: &[profile::Profile],
         heights: &[f64],
@@ -460,19 +466,19 @@ impl brep_protocol::Kernel for NextBrep {
         place(s, frame).map(Some)
     }
 
-    fn union(&self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn union(&mut self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         boolean(BooleanOperation::Union, a, b)
     }
 
-    fn intersection(&self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn intersection(&mut self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         boolean(BooleanOperation::Intersect, a, b)
     }
 
-    fn difference(&self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn difference(&mut self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         boolean(BooleanOperation::Subtract, a, b)
     }
 
-    fn union_all(&self, solids: &[&Solid]) -> Result<Solid, Refusal> {
+    fn union_all(&mut self, solids: &[&Solid]) -> Result<Solid, Refusal> {
         let solids: Vec<BrepSolid> = solids.iter().filter_map(|s| (*s).clone()).collect();
         match solids.len() {
             0 => Ok(None),
@@ -483,7 +489,7 @@ impl brep_protocol::Kernel for NextBrep {
         }
     }
 
-    fn difference_all(&self, target: &Solid, tools: &[&Solid]) -> Result<Solid, Refusal> {
+    fn difference_all(&mut self, target: &Solid, tools: &[&Solid]) -> Result<Solid, Refusal> {
         let Some(target) = target else {
             return Ok(None);
         };
@@ -497,30 +503,30 @@ impl brep_protocol::Kernel for NextBrep {
         ))
     }
 
-    fn volume(&self, s: &Solid) -> Result<f64, Refusal> {
+    fn volume(&mut self, s: &Solid) -> Result<f64, Refusal> {
         let Some(s) = s else { return Ok(0.0) };
         Ok(solid_mass_properties(s).map_err(failed)?.volume)
     }
 
-    fn area(&self, s: &Solid) -> Result<f64, Refusal> {
+    fn area(&mut self, s: &Solid) -> Result<f64, Refusal> {
         let Some(s) = s else { return Ok(0.0) };
         Ok(solid_mass_properties(s).map_err(failed)?.surface_area)
     }
 
-    fn centroid(&self, s: &Solid) -> Result<Option<model::Vec3>, Refusal> {
+    fn centroid(&mut self, s: &Solid) -> Result<Option<model::Vec3>, Refusal> {
         let Some(s) = s else { return Ok(None) };
         let c = solid_mass_properties_full(s).map_err(failed)?.centroid;
         Ok(Some([c.x, c.y, c.z]))
     }
 
-    fn inertia(&self, s: &Solid) -> Result<[[f64; 3]; 3], Refusal> {
+    fn inertia(&mut self, s: &Solid) -> Result<[[f64; 3]; 3], Refusal> {
         let Some(s) = s else {
             return Ok([[0.0; 3]; 3]);
         };
         Ok(solid_mass_properties_full(s).map_err(failed)?.inertia)
     }
 
-    fn check(&self, s: &Solid) -> Result<Vec<String>, Refusal> {
+    fn check(&mut self, s: &Solid) -> Result<Vec<String>, Refusal> {
         let Some(s) = s else {
             return Ok(Vec::new());
         };
@@ -530,7 +536,7 @@ impl brep_protocol::Kernel for NextBrep {
             .collect())
     }
 
-    fn classify(&self, s: &Solid, pts: &[model::Vec3]) -> Result<Vec<model::Side>, Refusal> {
+    fn classify(&mut self, s: &Solid, pts: &[model::Vec3]) -> Result<Vec<model::Side>, Refusal> {
         let Some(s) = s else {
             return Ok(vec![model::Side::Out; pts.len()]);
         };
@@ -547,17 +553,17 @@ impl brep_protocol::Kernel for NextBrep {
             .collect()
     }
 
-    fn transform(&self, s: &Solid, matrix: [[f64; 4]; 3]) -> Result<Solid, Refusal> {
+    fn transform(&mut self, s: &Solid, matrix: [[f64; 4]; 3]) -> Result<Solid, Refusal> {
         let Some(s) = s else { return Ok(None) };
         mapped(s, matrix).map(Some)
     }
 
-    fn affine(&self, s: &Solid, matrix: [[f64; 4]; 3]) -> Result<Solid, Refusal> {
+    fn affine(&mut self, s: &Solid, matrix: [[f64; 4]; 3]) -> Result<Solid, Refusal> {
         let Some(s) = s else { return Ok(None) };
         mapped(s, matrix).map(Some)
     }
 
-    fn fillet(&self, s: &Solid, edges: &[model::Vec3], radius: f64) -> Result<Solid, Refusal> {
+    fn fillet(&mut self, s: &Solid, edges: &[model::Vec3], radius: f64) -> Result<Solid, Refusal> {
         let s = some(s, "fillet")?;
         let found = edge_points(s, edges)?;
         Ok(Some(
@@ -566,7 +572,7 @@ impl brep_protocol::Kernel for NextBrep {
     }
 
     /// next.BREP's two-distance chamfer, each distance set back along its face, both alike.
-    fn chamfer(&self, s: &Solid, edges: &[model::Vec3], d: f64) -> Result<Solid, Refusal> {
+    fn chamfer(&mut self, s: &Solid, edges: &[model::Vec3], d: f64) -> Result<Solid, Refusal> {
         let s = some(s, "chamfer")?;
         let found = edge_points(s, edges)?;
         Ok(Some(
@@ -577,7 +583,7 @@ impl brep_protocol::Kernel for NextBrep {
     /// next.BREP sets `d1` back along the first of the edge's two faces in its own order, so the
     /// named face's distance goes first when the named face is that one.
     fn chamfer_two(
-        &self,
+        &mut self,
         s: &Solid,
         edge: model::Vec3,
         face: model::Vec3,
@@ -603,7 +609,7 @@ impl brep_protocol::Kernel for NextBrep {
     }
 
     /// Every point within `distance` of the solid: next.BREP's offset with rounded corners.
-    fn offset(&self, s: &Solid, distance: f64) -> Result<Solid, Refusal> {
+    fn offset(&mut self, s: &Solid, distance: f64) -> Result<Solid, Refusal> {
         let s = some(s, "offset")?;
         Ok(Some(
             offset_solid(s, distance, OffsetCorners::Rounded)
@@ -614,14 +620,14 @@ impl brep_protocol::Kernel for NextBrep {
 
     /// The wall every point of the solid within `t` of its kept faces: next.BREP's shell joined
     /// by arcs, inward for a positive distance.
-    fn shell(&self, s: &Solid, open: &[model::Vec3], t: f64) -> Result<Solid, Refusal> {
+    fn shell(&mut self, s: &Solid, open: &[model::Vec3], t: f64) -> Result<Solid, Refusal> {
         let s = some(s, "shell")?;
         let ids = faces_at(s, open)?;
         Ok(Some(offset_shell_rounded(s, &ids, t).map_err(refused)?))
     }
 
     fn draft(
-        &self,
+        &mut self,
         s: &Solid,
         faces: &[model::Vec3],
         origin: model::Vec3,
@@ -635,7 +641,7 @@ impl brep_protocol::Kernel for NextBrep {
         ))
     }
 
-    fn delete_faces(&self, s: &Solid, faces: &[model::Vec3]) -> Result<Solid, Refusal> {
+    fn delete_faces(&mut self, s: &Solid, faces: &[model::Vec3]) -> Result<Solid, Refusal> {
         let s = some(s, "delete faces from")?;
         let ids = faces_at(s, faces)?;
         Ok(Some(delete_faces_and_heal(s, &ids).map_err(refused)?))
@@ -644,7 +650,7 @@ impl brep_protocol::Kernel for NextBrep {
     /// next.BREP moves faces by a translation, or turns them about an axis: a motion that does
     /// both, turning about an axis while sliding along it, has no one call.
     fn move_faces(
-        &self,
+        &mut self,
         s: &Solid,
         faces: &[model::Vec3],
         m: [[f64; 4]; 3],
@@ -669,7 +675,7 @@ impl brep_protocol::Kernel for NextBrep {
     /// next.BREP's plane split gives the piece below the plane, then the one above it: the
     /// protocol's order is the normal's side first.
     fn split(
-        &self,
+        &mut self,
         s: &Solid,
         origin: model::Vec3,
         normal: model::Vec3,
@@ -679,30 +685,28 @@ impl brep_protocol::Kernel for NextBrep {
         Ok((solid(above), solid(below)))
     }
 
-    fn mesh(&self, s: &Solid, tolerance: f64) -> Result<brep_protocol::Mesh, Refusal> {
+    fn mesh(&mut self, s: &Solid, tolerance: f64) -> Result<brep_protocol::Mesh, Refusal> {
         let Some(s) = s else {
             return Ok(brep_protocol::Mesh::default());
         };
         let m = tessellate_brep_watertight(s, tolerance).map_err(failed)?;
-        Ok(brep_protocol::Mesh {
-            positions: m
-                .positions
+        Ok(brep_protocol::Mesh::new(
+            m.positions
                 .as_chunks::<3>()
                 .0
                 .iter()
                 .map(|p| [p[0], p[1], p[2]])
                 .collect(),
-            triangles: m
-                .indices
+            m.indices
                 .as_chunks::<3>()
                 .0
                 .iter()
                 .map(|t| [t[0], t[1], t[2]])
                 .collect(),
-        })
+        ))
     }
 
-    fn write_step(&self, s: &Solid) -> Result<String, Refusal> {
+    fn write_step(&mut self, s: &Solid) -> Result<String, Refusal> {
         let s = some(s, "write as STEP")?;
         export_step(
             std::slice::from_ref(s),
@@ -713,7 +717,7 @@ impl brep_protocol::Kernel for NextBrep {
         .map_err(failed)
     }
 
-    fn read_step(&self, text: &str) -> Result<Solid, Refusal> {
+    fn read_step(&mut self, text: &str) -> Result<Solid, Refusal> {
         let mut solids = import_step(text).map_err(failed)?;
         match solids.len() {
             0 => Err(Refusal::invalid("the file holds no solid")),
@@ -724,36 +728,47 @@ impl brep_protocol::Kernel for NextBrep {
         }
     }
 
-    fn unsupported(&self) -> Vec<String> {
+    /// What next.BREP 0.24.0 has one call of the protocol's shape for. It builds face offsets,
+    /// thickened faces, outward normals and fillets of varying radius too, but with no public call
+    /// of that shape, so they are left out with the operations it does not have.
+    fn supports(&self) -> Vec<String> {
         [
-            // Built by next.BREP, but with no public call of the protocol's shape in 0.24.0.
-            "offset_faces",
-            "thicken",
-            "normal",
-            "fillet_variable",
-            // Operations next.BREP 0.24.0 does not have in one call of the protocol's shape.
-            "screw",
-            "slab",
-            "fillet_radii",
-            "fillet_conic",
-            "fillet_g2",
-            "fillet_setback",
-            "fillet_setback_g2",
-            "fillet_faces",
-            "full_round",
-            "chamfer_distances",
-            "sew",
-            "closest",
-            "curvature",
-            "distance",
-            "interference",
-            "betti",
-            "section_area",
-            "section",
-            "project",
-            "bounding_box",
-            "display",
-            "raycast",
+            "box",
+            "cylinder",
+            "sphere",
+            "torus",
+            "cone",
+            "extrude",
+            "revolve",
+            "loft",
+            "loft_through",
+            "sweep",
+            "sweep_path",
+            "union",
+            "intersection",
+            "difference",
+            "union_all",
+            "difference_all",
+            "fillet",
+            "chamfer",
+            "chamfer_two",
+            "offset",
+            "delete_faces",
+            "move_faces",
+            "shell",
+            "draft",
+            "write_step",
+            "read_step",
+            "volume",
+            "area",
+            "classify",
+            "check",
+            "centroid",
+            "inertia",
+            "split",
+            "mesh",
+            "transform",
+            "affine",
         ]
         .map(String::from)
         .to_vec()
@@ -761,7 +776,7 @@ impl brep_protocol::Kernel for NextBrep {
 }
 
 fn main() -> ExitCode {
-    match brep_protocol::serve(&NextBrep) {
+    match brep_protocol::serve(&mut NextBrep) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{e}");
