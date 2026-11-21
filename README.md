@@ -27,7 +27,8 @@ maintains it.
 
 [`src/main.rs`](src/main.rs) answers each function with next.BREP's one call for it, as
 [the contract](https://github.com/springcraft-ai/brep-conformance/blob/main/doc/contract.md#what-an-adapter-may-do)
-asks, and lists the rest as unsupported. It builds the suite's box, cylinder, sphere, torus and cone
+asks, and offers only those: `supports` lists them, and the suite scores a case that needs any
+other as unsupported. It builds the suite's box, cylinder, sphere, torus and cone
 with next.BREP's own constructors, and its extrusions, revolutions, lofts and sweeps with its
 profile constructions, each about the origin and moved onto its frame by next.BREP's affine map. It
 answers the booleans, the booleans of many, the mass properties, the validity check,
@@ -53,7 +54,7 @@ failure.
 The adapter classifies points at the suite's tolerance, 1e-7 mm, and says so in `hello`. It
 declares 4e-3 mm, the edge-to-face disagreement next.BREP's validator accepts in a valid solid.
 
-Listed as unsupported, since next.BREP 0.24.0 has no public call of the protocol's shape for it:
+Left out of `supports`, since next.BREP 0.24.0 has no public call of the protocol's shape for it:
 
 - Face offsets, thickening a solid's faces, and outward normals: next.BREP builds these, but behind
   its feature pipeline or in private modules.

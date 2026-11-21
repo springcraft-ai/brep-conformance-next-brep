@@ -8,8 +8,9 @@ as pass-through.
 
 - **Corrections.** A place where the adapter drives next.BREP wrongly, or calls something other
   than the kernel's one call for a function.
-- **New calls.** A function the adapter lists as unsupported that a newer next.BREP release now
-  offers in one call.
+- **New calls.** A function the adapter leaves out of `supports` that a newer next.BREP release
+  now offers in one call. Add its method and its name to `supports`: the suite asks only for what
+  that list names.
 
 What does not belong: work the kernel does not do itself. The adapter is pass-through, as the
 suite's
