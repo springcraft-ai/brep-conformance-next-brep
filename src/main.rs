@@ -431,7 +431,7 @@ impl brep_protocol::Kernel for NextBrep {
     type Solid = Solid;
 
     fn name(&self) -> String {
-        "next.BREP".into()
+        "next-brep".into()
     }
 
     fn version(&self) -> String {
