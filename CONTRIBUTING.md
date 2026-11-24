@@ -24,7 +24,10 @@ next.BREP itself belongs with next.BREP.
 
 ## Licence of contributions
 
-Contributions are accepted under this repository's [MIT licence](LICENSE).
+Unless you explicitly state otherwise, any contribution you intentionally submit for inclusion
+in this repository, as defined in the Apache License, Version 2.0, is licensed under both the
+MIT licence and the Apache License, Version 2.0, as the [README](README.md#licences) describes,
+without any additional terms or conditions.
 
 next.BREP has a licence of its own, which the [README](README.md#licences) describes. Call the
 kernel; do not copy its source, or any other project's, into this repository, and do not patch its
