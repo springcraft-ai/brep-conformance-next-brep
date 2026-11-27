@@ -8,8 +8,8 @@ publish = false
 
 [dependencies]
 brep-protocol = "=2.0.1"
-brep_kernel = { package = "BREP_kernel", version = "=0.31.0" }
+brep_kernel = { package = "BREP_kernel", version = "=0.32.2" }
 # The same release's blend crate, for the edge-to-faces order `BREP_kernel` does not re-export.
-brep_blend = { package = "BREP_blend", version = "=0.31.0" }
+brep_blend = { package = "BREP_blend", version = "=0.32.2" }
 # The same release's drawing crate, for the hidden-line pass a sheet draws with.
-brep_render = { package = "BREP_render", version = "=0.30.0", default-features = false }
+brep_render = { package = "BREP_render", version = "=0.31.1", default-features = false }

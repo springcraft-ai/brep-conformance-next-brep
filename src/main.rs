@@ -530,7 +530,7 @@ impl brep_protocol::Kernel for NextBrep {
     }
 
     fn version(&self) -> String {
-        "0.31.0".into()
+        "0.32.2".into()
     }
 
     fn tolerance(&self) -> f64 {
@@ -1193,7 +1193,7 @@ impl brep_protocol::Kernel for NextBrep {
         }
     }
 
-    /// What next.BREP 0.31.0 has one call of the protocol's shape for. It has no such call for ray
+    /// What next.BREP 0.32.2 has one call of the protocol's shape for. It has no such call for ray
     /// casts, distances or Betti numbers, so those are left out with the operations it does not
     /// have.
     fn supports(&self) -> Vec<String> {

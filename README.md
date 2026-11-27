@@ -58,7 +58,7 @@ classifier calls a point on the boundary within ten times the tolerance it is bu
 built with a tenth of that. It declares 4e-3 mm, the edge-to-face disagreement next.BREP's validator
 accepts in a valid solid.
 
-Left out of `supports`, since next.BREP 0.31.0 has no public call of the protocol's shape for
+Left out of `supports`, since next.BREP 0.32.2 has no public call of the protocol's shape for
 them: ray casts, distance and Betti numbers.
 
 next.BREP's extrusions and revolutions take a profile with holes. A sweep along a path takes one too:
